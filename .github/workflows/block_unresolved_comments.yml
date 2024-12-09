@@ -1,24 +1,18 @@
-name: Block PR with Unresolved Comments
+name: Always Fail Workflow
 
 on:
   pull_request:
     types: [opened, synchronize]
 
 jobs:
-  check-comments:
+  fail-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Check comments for blocking tags
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number
-            });
-
-            const blocking = comments.data.filter(comment => comment.body.includes("[BLOCKING]"));
-            if (blocking.length > 0) {
-              core.setFailed("PR has unresolved [BLOCKING] comments.");
-            }
+      - name: Print a failure message
+        run: |
+          echo "This workflow is designed to fail."
+      
+      - name: Set the workflow status to failed
+        run: |
+          echo "Failing the job intentionally."
+          exit 1  # Forces the step to fail

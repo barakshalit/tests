@@ -27,7 +27,7 @@ jobs:
               issue_number: context.issue.number
             });
             
-            // Get all PR reviews
+            // Get all PR reviews (including pending ones)
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -39,6 +39,14 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number
+            });
+
+            // Get pending reviews
+            const { data: pendingReviews } = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              in_reply_to: null  // This gets pending comments
             });
             
             let blockedComments = [];
@@ -55,6 +63,11 @@ jobs:
             
             // Check inline review comments
             blockedComments.push(...reviewComments.filter(comment => 
+              comment.body.includes('[BLOCKED]') && !comment.resolved_at
+            ));
+
+            // Check pending review comments
+            blockedComments.push(...pendingReviews.filter(comment => 
               comment.body.includes('[BLOCKED]') && !comment.resolved_at
             ));
             

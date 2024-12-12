@@ -27,7 +27,7 @@ jobs:
               issue_number: context.issue.number
             });
             
-            // Get all PR reviews (including pending ones)
+            // Get all PR reviews
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -40,36 +40,28 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-
-            // Get pending reviews
-            const { data: pendingReviews } = await github.rest.pulls.listReviewComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              in_reply_to: null  // This gets pending comments
-            });
             
             let blockedComments = [];
             
-            // Check regular PR comments
+            // Check regular PR comments - these can't be resolved, so we check if they're actively marked as resolved
+            // by looking for a "[RESOLVED]" marker that someone would need to add
             blockedComments.push(...issueComments.filter(comment => 
-              comment.body.includes('[BLOCKED]')
+              comment.body.includes('[BLOCKED]') && !comment.body.includes('[RESOLVED]')
             ));
             
             // Check review body comments
             blockedComments.push(...reviews.filter(review => 
-              review.body && review.body.includes('[BLOCKED]')
+              review.body && 
+              review.body.includes('[BLOCKED]') && 
+              !review.body.includes('[RESOLVED]')
             ));
             
-            // Check inline review comments
-            blockedComments.push(...reviewComments.filter(comment => 
-              comment.body.includes('[BLOCKED]') && !comment.resolved_at
-            ));
-
-            // Check pending review comments
-            blockedComments.push(...pendingReviews.filter(comment => 
-              comment.body.includes('[BLOCKED]') && !comment.resolved_at
-            ));
+            // Check inline review comments - these have a proper resolution status
+            blockedComments.push(...reviewComments.filter(comment => {
+              // Check if the comment contains [BLOCKED] and is not resolved
+              // resolved_at will be null if the comment is not resolved
+              return comment.body.includes('[BLOCKED]') && !comment.resolved;
+            }));
             
             if (blockedComments.length > 0) {
               core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);

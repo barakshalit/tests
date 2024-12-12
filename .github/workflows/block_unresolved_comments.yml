@@ -3,6 +3,8 @@ name: Check Blocked PR Comments
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
   pull_request_review_comment:
     types: [created, edited, deleted]
 
@@ -18,21 +20,43 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { data: comments } = await github.rest.pulls.listReviewComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            
+            // Get regular PR comments
             const { data: issueComments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
             
-            const blockedComments = [...comments, ...issueComments].filter(comment => {
-              return comment.body.includes('[BLOCKED]') && !comment.resolved;
+            // Get all PR reviews
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
             });
+            
+            // Get inline review comments
+            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            let blockedComments = [];
+            
+            // Check regular PR comments
+            blockedComments.push(...issueComments.filter(comment => 
+              comment.body.includes('[BLOCKED]')
+            ));
+            
+            // Check review body comments
+            blockedComments.push(...reviews.filter(review => 
+              review.body && review.body.includes('[BLOCKED]')
+            ));
+            
+            // Check inline review comments
+            blockedComments.push(...reviewComments.filter(comment => 
+              comment.body.includes('[BLOCKED]') && !comment.resolved_at
+            ));
             
             if (blockedComments.length > 0) {
               core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);
@@ -40,7 +64,12 @@ jobs:
               console.log('Blocked Comments:');
               blockedComments.forEach(comment => {
                 console.log(`- ${comment.html_url}`);
-                console.log(`  ${comment.body}\n`);
+                console.log(`  ${comment.body}`);
+                if (comment.path && comment.line) {
+                  console.log(`  File: ${comment.path}, Line: ${comment.line}\n`);
+                } else {
+                  console.log('\n');
+                }
               });
             } else {
               console.log('No unresolved [BLOCKED] comments found.');

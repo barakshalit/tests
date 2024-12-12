@@ -21,7 +21,11 @@ jobs:
       - name: Check for unresolved BLOCKED comments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          echo "Running script to check unresolved BLOCKED comments..."
           node <<EOF
           const fetch = require('node-fetch');
 
@@ -45,9 +49,9 @@ jobs:
           }`;
 
           async function checkBlockedComments() {
-            const owner = "${{ github.repository_owner }}";
-            const repo = "${{ github.event.repository.name }}";
-            const pullNumber = ${{ github.event.pull_request.number }};
+            const owner = process.env.OWNER;
+            const repo = process.env.REPO;
+            const pullNumber = parseInt(process.env.PR_NUMBER, 10);
 
             const response = await fetch('https://api.github.com/graphql', {
               method: 'POST',

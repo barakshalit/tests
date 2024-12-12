@@ -1,66 +1,93 @@
-name: Check Blocked PR Comments
+name: Check for BLOCKED Comments
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
   pull_request_review:
     types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
 
 jobs:
-  check-comments:
+  check-blocked-comments:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Get PR comments
-        id: get-comments
-        uses: actions/github-script@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          script: |
-            // Get review threads which include resolution status
-            const { data: threads } = await github.rest.pulls.listReviewThreads({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            
-            let blockedComments = [];
-            
-            // Debug logging
-            console.log('Checking review threads for [BLOCKED] status:');
-            threads.forEach(thread => {
-              console.log(`Thread resolution status: ${thread.isResolved}`);
-              thread.comments.forEach(comment => {
-                console.log(`Comment: ${comment.body.substring(0, 50)}...`);
-              });
-            });
-            
-            // Check each thread
-            threads.forEach(thread => {
-              // If any comment in the thread contains [BLOCKED] and the thread isn't resolved
-              if (!thread.isResolved && thread.comments.some(comment => comment.body.includes('[BLOCKED]'))) {
-                blockedComments.push(...thread.comments.filter(comment => 
-                  comment.body.includes('[BLOCKED]')
-                ));
+          node-version: 16
+
+      - name: Check for unresolved BLOCKED comments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node <<EOF
+          const fetch = require('node-fetch');
+
+          const graphqlQuery = `
+          query ($owner: String!, $repo: String!, $pullNumber: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pullNumber) {
+                reviews(first: 100) {
+                  nodes {
+                    comments(first: 100) {
+                      nodes {
+                        body
+                        isMinimized
+                        minimizedReason
+                      }
+                    }
+                  }
+                }
               }
+            }
+          }`;
+
+          async function checkBlockedComments() {
+            const owner = "${{ github.repository_owner }}";
+            const repo = "${{ github.event.repository.name }}";
+            const pullNumber = ${{ github.event.pull_request.number }};
+
+            const response = await fetch('https://api.github.com/graphql', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                query: graphqlQuery,
+                variables: { owner, repo, pullNumber },
+              }),
             });
-            
-            if (blockedComments.length > 0) {
-              core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);
-              
-              console.log('Blocked Comments:');
-              blockedComments.forEach(comment => {
-                console.log(`- ${comment.html_url}`);
-                console.log(`  ${comment.body}`);
-                if (comment.path && comment.line) {
-                  console.log(`  File: ${comment.path}, Line: ${comment.line}\n`);
-                } else {
-                  console.log('\n');
+
+            const data = await response.json();
+
+            const reviews = data.data.repository.pullRequest.reviews.nodes;
+            let hasBlocked = false;
+
+            reviews.forEach(review => {
+              review.comments.nodes.forEach(comment => {
+                if (
+                  comment.body.includes("[BLOCKED]") &&
+                  (!comment.isMinimized || comment.minimizedReason !== "resolved")
+                ) {
+                  console.log(`Unresolved [BLOCKED] comment found: ${comment.body}`);
+                  hasBlocked = true;
                 }
               });
+            });
+
+            if (hasBlocked) {
+              console.error("There are unresolved [BLOCKED] comments!");
+              process.exit(1);
             } else {
-              console.log('No unresolved [BLOCKED] comments found.');
+              console.log("No unresolved [BLOCKED] comments found.");
             }
+          }
+
+          checkBlockedComments().catch(err => {
+            console.error("Error:", err);
+            process.exit(1);
+          });
+          EOF

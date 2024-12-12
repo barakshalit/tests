@@ -20,20 +20,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Get regular PR comments
-            const { data: issueComments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-            
-            // Get all PR reviews
-            const { data: reviews } = await github.rest.pulls.listReviews({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            
             // Get inline review comments
             const { data: reviewComments } = await github.rest.pulls.listReviewComments({
               owner: context.repo.owner,
@@ -43,25 +29,12 @@ jobs:
             
             let blockedComments = [];
             
-            // Check regular PR comments - these can't be resolved, so we check if they're actively marked as resolved
-            // by looking for a "[RESOLVED]" marker that someone would need to add
-            blockedComments.push(...issueComments.filter(comment => 
-              comment.body.includes('[BLOCKED]') && !comment.body.includes('[RESOLVED]')
+            // Only add comments that:
+            // 1. Contain [BLOCKED]
+            // 2. Are not marked as resolved in GitHub
+            blockedComments.push(...reviewComments.filter(comment => 
+              comment.body.includes('[BLOCKED]') && !comment.resolved
             ));
-            
-            // Check review body comments
-            blockedComments.push(...reviews.filter(review => 
-              review.body && 
-              review.body.includes('[BLOCKED]') && 
-              !review.body.includes('[RESOLVED]')
-            ));
-            
-            // Check inline review comments - these have a proper resolution status
-            blockedComments.push(...reviewComments.filter(comment => {
-              // Check if the comment contains [BLOCKED] and is not resolved
-              // resolved_at will be null if the comment is not resolved
-              return comment.body.includes('[BLOCKED]') && !comment.resolved;
-            }));
             
             if (blockedComments.length > 0) {
               core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);

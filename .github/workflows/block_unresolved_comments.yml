@@ -48,6 +48,7 @@ jobs:
                 } else {
                   console.log('\n');
                 }
+                console.log(`resolved status  ${comment.resolved}`);
               });
             } else {
               console.log('No unresolved [BLOCKED] comments found.');

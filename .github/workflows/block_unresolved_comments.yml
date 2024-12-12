@@ -20,8 +20,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Get inline review comments
-            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
+            // Get review threads which include resolution status
+            const { data: threads } = await github.rest.pulls.listReviewThreads({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number
@@ -30,18 +30,23 @@ jobs:
             let blockedComments = [];
             
             // Debug logging
-            console.log('Checking comments for [BLOCKED] status:');
-            reviewComments.forEach(comment => {
-              console.log(`Comment: ${comment.body.substring(0, 50)}...`);
-              console.log(`resolved_at: ${comment.resolved_at}`);
+            console.log('Checking review threads for [BLOCKED] status:');
+            threads.forEach(thread => {
+              console.log(`Thread resolution status: ${thread.isResolved}`);
+              thread.comments.forEach(comment => {
+                console.log(`Comment: ${comment.body.substring(0, 50)}...`);
+              });
             });
             
-            // Only add comments that:
-            // 1. Contain [BLOCKED]
-            // 2. Don't have a resolved_at timestamp (meaning they're not resolved)
-            blockedComments.push(...reviewComments.filter(comment => 
-              comment.body.includes('[BLOCKED]') && comment.resolved_at === null
-            ));
+            // Check each thread
+            threads.forEach(thread => {
+              // If any comment in the thread contains [BLOCKED] and the thread isn't resolved
+              if (!thread.isResolved && thread.comments.some(comment => comment.body.includes('[BLOCKED]'))) {
+                blockedComments.push(...thread.comments.filter(comment => 
+                  comment.body.includes('[BLOCKED]')
+                ));
+              }
+            });
             
             if (blockedComments.length > 0) {
               core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);

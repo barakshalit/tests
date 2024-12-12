@@ -1,18 +1,47 @@
-name: Always Fail Workflow
+name: Check Blocked PR Comments
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
 
 jobs:
-  fail-job:
+  check-comments:
     runs-on: ubuntu-latest
     steps:
-      - name: Print a failure message
-        run: |
-          echo "This workflow is designed to fail."
-      
-      - name: Set the workflow status to failed
-        run: |
-          echo "Failing the job intentionally."
-          exit 1  # Forces the step to fail
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get PR comments
+        id: get-comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const { data: issueComments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const blockedComments = [...comments, ...issueComments].filter(comment => {
+              return comment.body.includes('[BLOCKED]') && !comment.resolved;
+            });
+            
+            if (blockedComments.length > 0) {
+              core.setFailed(`Found ${blockedComments.length} unresolved [BLOCKED] comments. Please resolve them before merging.`);
+              
+              console.log('Blocked Comments:');
+              blockedComments.forEach(comment => {
+                console.log(`- ${comment.html_url}`);
+                console.log(`  ${comment.body}\n`);
+              });
+            } else {
+              console.log('No unresolved [BLOCKED] comments found.');
+            }

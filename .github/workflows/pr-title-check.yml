@@ -12,29 +12,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Debug PR title
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const prTitle = context.payload.pull_request.title;
-          console.log(`Raw PR Title: "${prTitle}"`);
-          console.log(`Length of Title: ${prTitle.length}`);
-          const regex = /^[a-zA-Z]{8}: .+/;
-          console.log(`Regex Test Result: ${regex.test(prTitle)}`);
-          if (!regex.test(prTitle)) {
-            console.log('The title does not match the regex.');
-            console.log('Here is a breakdown:');
-            console.log(`Does it start with 8 letters? ${/^[a-zA-Z]{8}/.test(prTitle)}`);
-            console.log(`Is there a colon and space? ${/: .+/.test(prTitle.slice(8))}`);
-          } else {
-            console.log('PR title is valid.');
-          }
     - name: Validate PR title
       uses: actions/github-script@v6
       with:
         script: |
-          const prTitle = context.payload.pull_request.title;
-          const regex = /^[a-zA-Z]{8}: .+/;
+          const prTitle = context.payload.pull_request.title.trim();
+          console.log(`PR Title: "${prTitle}"`);
+          
+          // Updated regex to allow numbers in the first 8 characters
+          const regex = /^[a-zA-Z0-9]{8}: .+/;
+          
           if (!regex.test(prTitle)) {
-            throw new Error(`Invalid PR title: "${prTitle}". It must start with exactly 8 letters, followed by ": " and at least one more character.`);
+            throw new Error(`Invalid PR title: "${prTitle}". It must start with exactly 8 alphanumeric characters (letters or numbers), followed by ": " and at least one more character.`);
           }
+          console.log('PR title is valid.');

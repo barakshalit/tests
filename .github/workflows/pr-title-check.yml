@@ -17,12 +17,17 @@ jobs:
       with:
         script: |
           const prTitle = context.payload.pull_request.title;
-          console.log(`PR Title: "${prTitle}"`);
+          console.log(`Raw PR Title: "${prTitle}"`);
+          console.log(`Length of Title: ${prTitle.length}`);
           const regex = /^[a-zA-Z]{8}: .+/;
-          if (regex.test(prTitle)) {
-            console.log('PR title is valid.');
+          console.log(`Regex Test Result: ${regex.test(prTitle)}`);
+          if (!regex.test(prTitle)) {
+            console.log('The title does not match the regex.');
+            console.log('Here is a breakdown:');
+            console.log(`Does it start with 8 letters? ${/^[a-zA-Z]{8}/.test(prTitle)}`);
+            console.log(`Is there a colon and space? ${/: .+/.test(prTitle.slice(8))}`);
           } else {
-            console.log('PR title is invalid.');
+            console.log('PR title is valid.');
           }
     - name: Validate PR title
       uses: actions/github-script@v6

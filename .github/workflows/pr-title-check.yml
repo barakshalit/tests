@@ -1,0 +1,23 @@
+name: PR Title Validation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+jobs:
+  check-pr-title:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check PR title
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prTitle = context.payload.pull_request.title;
+          const regex = /^[a-zA-Z]{8}: .+/;
+          if (!regex.test(prTitle)) {
+            throw new Error(`Invalid PR title: "${prTitle}". It must start with exactly 8 letters, followed by ": "`);
+          }

@@ -12,7 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check PR title
+    - name: Debug PR title
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prTitle = context.payload.pull_request.title;
+          console.log(`PR Title: "${prTitle}"`);
+          const regex = /^[a-zA-Z]{8}: .+/;
+          if (regex.test(prTitle)) {
+            console.log('PR title is valid.');
+          } else {
+            console.log('PR title is invalid.');
+          }
+    - name: Validate PR title
       uses: actions/github-script@v6
       with:
         script: |

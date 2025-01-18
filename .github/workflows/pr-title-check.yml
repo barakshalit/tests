@@ -19,7 +19,7 @@ jobs:
           const prTitle = context.payload.pull_request.title.trim();
           console.log(`PR Title: "${prTitle}"`);
           
-          // Updated regex to allow numbers in the first 8 characters
+          // Regex match for PR title (8 charecters followed by a colon and a space and then any number of charecters)
           const regex = /^[a-zA-Z0-9]{8}: .+/;
           
           if (!regex.test(prTitle)) {

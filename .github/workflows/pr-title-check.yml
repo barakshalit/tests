@@ -19,5 +19,4 @@ jobs:
           const prTitle = context.payload.pull_request.title;
           const regex = /^[a-zA-Z]{8}: .+/;
           if (!regex.test(prTitle)) {
-            throw new Error(`Invalid PR title: "${prTitle}". It must start with exactly 8 letters, followed by ": "`);
-          }
+            throw new Error(`Invalid PR title: "${prTitle}". It must start with exactly 8 letters, followed by ": " 
